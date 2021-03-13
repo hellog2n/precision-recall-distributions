@@ -80,13 +80,16 @@ def compute_prd(eval_dist, ref_dist, num_angles=1001, epsilon=1e-10):
   if not (num_angles >= 3 and num_angles <= 1e6):
     raise ValueError('num_angles must be in [3, 1e6] but is %d.' % num_angles)
 
+# epsilon 0.0000000001 부터 pi/2 - epsilon까지 1001개의 간격으로 나눈다.
   # Compute slopes for linearly spaced angles between [0, pi/2]
   angles = np.linspace(epsilon, np.pi/2 - epsilon, num=num_angles)
   slopes = np.tan(angles)
 
+# [0, 1, 2, 3] -> [[0], [1], [2], [3]]
   # Broadcast slopes so that second dimension will be states of the distribution
   slopes_2d = np.expand_dims(slopes, 1)
 
+# [0.XX, 0.XX, 0.XX] -> [[0.XX, 0.XX, 0.XX]]
   # Broadcast distributions so that first dimension represents the angles
   ref_dist_2d = np.expand_dims(ref_dist, 0)
   eval_dist_2d = np.expand_dims(eval_dist, 0)
@@ -129,6 +132,12 @@ def _cluster_into_bins(eval_data, ref_data, num_clusters):
   eval_labels = labels[:len(eval_data)]
   ref_labels = labels[len(eval_data):]
 
+# 배열을 매개변수로 전달하여 히스토그램을 계산하고 히스토그램 값을 저장한 배열을 반환한다.
+# bins = bin의 수를 나타낸다. 범위를 나타낸다.
+# range = bins의 상한과 하한 범위를 나타낸다. 범위가 지정되지 않으면 [list.min(), list.max()] 가 범위이다.
+# density는 부울 매개변수이다. 값이 True이면 빈도를 계산하는 대신 확률을 계산한다.
+
+# 각 bin(클러스터) 범위의 개수를 뽑아온다.
   eval_bins = np.histogram(eval_labels, bins=num_clusters,
                            range=[0, num_clusters], density=True)[0]
   ref_bins = np.histogram(ref_labels, bins=num_clusters,

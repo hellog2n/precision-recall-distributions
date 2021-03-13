@@ -13,23 +13,28 @@ import numpy as np
 import inception
 import prd_score as prd
 
-
+# 코드를 실행할 때 입력 인자를 받습니다.
 parser = argparse.ArgumentParser(
     description='Assessing Generative Models via Precision and Recall',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+# 참고하려는 이미지가 포함되어 있는 Directory Name (필수)
 parser.add_argument('--reference_dir', type=str, required=True,
                     help='directory containing reference images')
+# 평가하려는 이미지가 포함되어 있는 Directory Name (필수), nargs가 +인 경우, 1개 이상의 값을 전부 받아들인다.  *인 경우, 0개 이상의 값을 전부 받아들인다.
 parser.add_argument('--eval_dirs', type=str, nargs='+', required=True,
                     help='directory or directories containing images to be '
                     'evaluated')
+# 평가하려는 디렉토리의 Labels (필수)
 parser.add_argument('--eval_labels', type=str, nargs='+', required=True,
                     help='labels for the eval_dirs (must have same size)')
+# 클러스터 수 20
 parser.add_argument('--num_clusters', type=int, default=20,
                     help='number of cluster centers to fit')
 parser.add_argument('--num_angles', type=int, default=1001,
                     help='number of angles for which to compute PRD, must be '
                          'in [3, 1e6]')
+# PRD 데이터를 평가하기 위해 평균을 낼 독립 변수
 parser.add_argument('--num_runs', type=int, default=10,
                     help='number of independent runs over which to average the '
                          'PRD data')
@@ -37,34 +42,42 @@ parser.add_argument('--plot_path', type=str, default=None,
                     help='path for final plot file (can be .png or .pdf)')
 parser.add_argument('--cache_dir', type=str, default='/tmp/prd_cache/',
                     help='cache directory')
+                    # inceptionV3 모델 load 위치
 parser.add_argument('--inception_path', type=str,
                     default='/tmp/prd_cache/inception.pb',
                     help='path to pre-trained Inception.pb file')
+                    # store_false에 인자를 적으면 해당 인자에 Flase 값이 저장된다.  적지 않으면 True값이 나옴.
 parser.add_argument('--silent', dest='verbose', action='store_false',
                     help='disable logging output')
 
 args = parser.parse_args()
 
-
+# inceptionV3 모델의 pooling 계층을 이용하여 이미지의 feature를 뽑는다.
 def generate_inception_embedding(imgs, inception_path, layer_name='pool_3:0'):
     return inception.embed_images_in_inception(imgs, inception_path, layer_name)
 
 
+# inceptionV3을 통해서 임베딩을 한다.
 def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
     hash = hashlib.md5(directory.encode('utf-8')).hexdigest()
     path = os.path.join(cache_dir, hash + '.npy')
+    # 경로에 캐시파일이 있으면 갖고온다.
     if os.path.exists(path):
         embeddings = np.load(path)
         return embeddings
+
+    # 디렉토리로부터 이미지를 갖고온다.
     imgs = load_images_from_dir(directory)
     embeddings = generate_inception_embedding(imgs, inception_path)
+
+    # 임베딩한 파일을 캐시파일로 저장한다.
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
     with open(path, 'wb') as f:
         np.save(f, embeddings)
     return embeddings
 
-
+# 디렉토리로부터 이미지를 갖고온다.
 def load_images_from_dir(directory, types=('png', 'jpg', 'bmp', 'gif')):
     paths = [os.path.join(directory, fn) for fn in os.listdir(directory)
              if os.path.splitext(fn)[-1][1:] in types]
@@ -79,6 +92,7 @@ if __name__ == '__main__':
         raise ValueError(
             'Number of --eval_dirs must be equal to number of --eval_labels.')
 
+# ref 폴더 경로와 eval 폴더 경로의 절대 경로를 얻는다.
     reference_dir = os.path.abspath(args.reference_dir)
     eval_dirs = [os.path.abspath(directory) for directory in args.eval_dirs]
 
