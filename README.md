@@ -1,3 +1,6 @@
+## Tensorflow 2.0에서 작동될 수 있도록 수정 중...
+
+
 # Assessing Generative Models via Precision and Recall
 
 Official code for [Assessing Generative Models via Precision and Recall](https://arxiv.org/abs/1806.00035) by [Mehdi S. M. Sajjadi](http://msajjadi.com), [Olivier Bachem](http://olivierbachem.ch/), [Mario Lucic](https://ai.google/research/people/MarioLucic), [Olivier Bousquet](https://ai.google/research/people/OlivierBousquet), and [Sylvain Gelly](https://ai.google/research/people/SylvainGelly), presented at [NeurIPS 2018](https://neurips.cc/). The poster can be downloaded [here](https://people.tuebingen.mpg.de/msajjadi/prd_poster.pdf).
