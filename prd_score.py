@@ -126,9 +126,15 @@ def _cluster_into_bins(eval_data, ref_data, num_clusters):
   """
 
   cluster_data = np.vstack([eval_data, ref_data])
+  # n_cluster = 알고리즘이 찾을 클러스터 개수 k. 샘플의 군집을 몇개로 나눌 건지 정한다. 해당 코드에서는 20으로 초기화가 되어 있습니다.
+  # n_init = 각 군집의 센트로이드 (중심)의 위치를 근사하게 알기 위한 방법 중 랜덤 초기화를 다르게 하여 여러 번의 알고리즘을 실행하고 그 중 가장 좋은 솔루션을 선택하는 것이다. n_init은 그 랜덤초기화의 횟수이다. 기본값은 10이다.
+  # 전체 데이터셋을 사용해 반복하지 않고 각 반복마다 미니배치를 사용해 센트로이드를 조금씩 이동한다. 
   kmeans = sklearn.cluster.MiniBatchKMeans(n_clusters=num_clusters, n_init=10)
   labels = kmeans.fit(cluster_data).labels_
-
+# cluster_centers_ndarray of shape (n_clusters, n_features)
+#Coordinates of cluster centers. If the algorithm stops before fully converging (see tol and max_iter), these will not be consistent with labels_.
+#labels_ndarray of shape (n_samples,)
+#Labels of each point
   eval_labels = labels[:len(eval_data)]
   ref_labels = labels[len(eval_data):]
 
