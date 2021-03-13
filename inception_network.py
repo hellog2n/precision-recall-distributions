@@ -18,6 +18,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import tensorflow as tf
+from skimage.transform import resize
+from numpy import asarray
+from tensorflow.python.keras.applications.inception_v3 import InceptionV3
+size = 75
+model = tf.keras.applications.InceptionV3(include_top=False, pooling='avg', input_shape=(size, size, 3))
+
+def scale_images_GPU(images, new_shape):
+  with tf.device('/device:GPU:0'):
+    images_list = list()
+    for image in images:
+      new_image = resize(image, new_shape, 0)
+      images_list.append(new_image)
+    return asarray(images_list)
 
 
 def preprocess_for_inception(images):
@@ -36,8 +49,8 @@ def preprocess_for_inception(images):
 
   # tf.contrib.gan.eval.preprocess_image function takes values in [0, 255]
   # 0.0 <= images <= 255.0 안에서만 이루어지게 한다. 만약 아닐 경우, InvalidArgumentError
-  with tf.control_dependencies([tf.assert_greater_equal(images, 0.0),
-                                tf.assert_less_equal(images, 255.0)]):
+  with tf.control_dependencies([tf.debugging.assert_greater_equal(images, 0.0),
+                                tf.debugging.assert_less_equal(images, 255.0)]):
 
     # Return a Tensor with the same shape and contents as input.
     images = tf.identity(images)
@@ -54,6 +67,11 @@ def preprocess_for_inception(images):
 
 def get_inception_features(inputs, inception_graph, layer_name):
   """Compose the preprocess_for_inception function with TFGAN run_inception."""
+  inputs = scale_images_GPU(inputs, (size, size, 3))
+  inputs = tf.keras.applications.inception_v3.preprocess_input(inputs)
+  #preprocessed = preprocess_for_inception(inputs)
+  return model.predict(inputs)
+
 
 """
 images: Input tensors. Must be [batch, height, width, channels]. Input shape and values must be in [-1, 1], which can be achieved using preprocess_image.
@@ -69,8 +87,8 @@ Examples include INCEPTION_V3_OUTPUT and INCEPTION_V3_FINAL_POOL which would res
   #return model.predict(inputs) -> run_inception
 
 # pooling Layer이고 -1, 1로 바꿔줌.
-  preprocessed = preprocess_for_inception(inputs)
-  return tf.contrib.gan.eval.run_inception(
-      preprocessed,
-      graph_def=inception_graph,
-      output_tensor=layer_name)
+  # preprocessed = preprocess_for_inception(inputs)
+  # return tf.contrib.gan.eval.run_inception(
+  #     preprocessed,
+  #     graph_def=inception_graph,
+  #     output_tensor=layer_name)

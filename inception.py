@@ -12,26 +12,32 @@ from inception_network import get_inception_features
 def embed_images_in_inception(imgs, inception_path, layer_name, batch_size=32):
     # 이미지를 담을 input_tensor를 선언한다.
     #input_tensor = tf.placeholder(tf.float32, [None, None, None, 3])
-
+    graph_def = tf.compat.v1.GraphDef()
     # inceptionV3 모델이 없을 경우 에러를 리턴한다.
     if not os.path.exists(inception_path):
         raise ValueError('Inception network file not found: ' + inception_path)
     
-    # 해당 경로에서 inception graph를 갖고온다.
-
-        """Get a GraphDef proto from a disk location."""
-    graph = tf.contrib.gan.eval.get_graph_def_from_disk(inception_path)
-    # Feature를 뽑는다.
-    #feature_tensor = get_inception_features(input_tensor, graph, layer_name)
-
     embeddings = []
     i = 0
 
-    while i < len(imgs):
-        input_tensor = imgs[i:i+batch_size]
-        feature_tensor = get_inception_features(input_tensor, graph, layer_name)
-        embeddings.append(feature_tensor)
-        i += batch_size
+    with tf.io.gfile.GFile(inception_path, 'rb') as f:
+        graph_def.ParseFromString(f.read())
+        graph = tf.import_graph_def(graph_def, name='')
+        while i < len(imgs):
+                input_tensor = imgs[i:i+batch_size]
+                feature_tensor = get_inception_features(input_tensor, graph, layer_name)
+                embeddings.append(feature_tensor)
+                i += batch_size
+    # 해당 경로에서 inception graph를 갖고온다.
+
+        """Get a GraphDef proto from a disk location."""
+    #graph = tf.contrib.gan.eval.get_graph_def_from_disk(inception_path)
+    # Feature를 뽑는다.
+    #feature_tensor = get_inception_features(input_tensor, graph, layer_name)
+
+    
+
+    
     return np.concatenate(embeddings, axis=0)
 
 
