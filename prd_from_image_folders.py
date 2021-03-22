@@ -3,12 +3,15 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+import tensorflow as tf
 import argparse
 import os
 import cv2
 import hashlib
-
+from scipy.linalg import sqrtm
+from numpy import cov
+from numpy import trace
+from numpy import iscomplexobj
 import numpy as np
 import inception
 import prd_score as prd
@@ -49,6 +52,7 @@ parser.add_argument('--inception_path', type=str,
                     # store_false에 인자를 적으면 해당 인자에 Flase 값이 저장된다.  적지 않으면 True값이 나옴.
 parser.add_argument('--silent', dest='verbose', action='store_false',
                     help='disable logging output')
+parser.add_argument('--beta', type=int, default=8, help='number of beta')
 
 args = parser.parse_args()
 
@@ -77,6 +81,24 @@ def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
         np.save(f, embeddings)
     return embeddings
 
+# FID를 계산한다.
+def calculate_fid_GPU(real_embeddings, eval_embeddings):
+  with tf.device('/device:GPU:0'):
+
+    # calculate mean and covariance statistics
+    mu1, sigma1 = real_embeddings.mean(axis=0), cov(real_embeddings, rowvar=False)
+    mu2, sigma2 = eval_embeddings.mean(axis=0), cov(eval_embeddings, rowvar=False)
+
+    ssdiff = np.sum((mu1 - mu2) ** 2.0)
+
+    covmean = sqrtm(sigma1.dot(sigma2))
+    if iscomplexobj(covmean):
+      covmean = covmean.real
+    fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
+    return fid
+
+
+
 # 디렉토리로부터 이미지를 갖고온다.
 def load_images_from_dir(directory, types=('png', 'jpg', 'bmp', 'gif')):
     paths = [os.path.join(directory, fn) for fn in os.listdir(directory)
@@ -95,6 +117,7 @@ if __name__ == '__main__':
 # ref 폴더 경로와 eval 폴더 경로의 절대 경로를 얻는다.
     reference_dir = os.path.abspath(args.reference_dir)
     eval_dirs = [os.path.abspath(directory) for directory in args.eval_dirs]
+    eval_embeddingsLists = []
 
     if args.verbose:
         print('computing inception embeddings for ' + reference_dir)
@@ -106,6 +129,7 @@ if __name__ == '__main__':
             print('computing inception embeddings for ' + directory)
         eval_embeddings = load_or_generate_inception_embedding(
             directory, args.cache_dir, args.inception_path)
+        eval_embeddingsLists.append(eval_embeddings)
         if args.verbose:
             print('computing PRD')
         prd_data.append(prd.compute_prd_from_embedding(
@@ -118,10 +142,13 @@ if __name__ == '__main__':
         print('plotting results')
 
     print()
-    f_beta_data = [prd.prd_to_max_f_beta_pair(precision, recall, beta=8)
+    f_beta_data = [prd.prd_to_max_f_beta_pair(precision, recall, beta=args.beta)
                    for precision, recall in prd_data]
     print('F_8   F_1/8     model')
     for directory, f_beta in zip(eval_dirs, f_beta_data):
         print('%.3f %.3f     %s' % (f_beta[0], f_beta[1], directory))
+        fid = calculate_fid_GPU(real_embeddings, eval_embeddingsLists[i])
+        print(f'FID ({directory}): %.3f' % fid)
+        i+=1
 
     prd.plot(prd_data, labels=args.eval_labels, out_path=args.plot_path)

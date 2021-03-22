@@ -148,7 +148,11 @@ def _cluster_into_bins(eval_data, ref_data, num_clusters):
                            range=[0, num_clusters], density=True)[0]
   ref_bins = np.histogram(ref_labels, bins=num_clusters,
                           range=[0, num_clusters], density=True)[0]
-  return eval_bins, ref_bins
+  eval_bins_num = np.histogram(eval_labels, bins=num_clusters,
+                           range=[0, num_clusters], density=False)[0]
+  ref_bins_num = np.histogram(ref_labels, bins=num_clusters,
+                          range=[0, num_clusters], density=False)[0]                        
+  return  eval_bins, ref_bins, eval_bins_num, ref_bins_num
 
 
 def compute_prd_from_embedding(eval_data, ref_data, num_clusters=20,
@@ -196,13 +200,23 @@ def compute_prd_from_embedding(eval_data, ref_data, num_clusters=20,
   ref_data = np.array(ref_data, dtype=np.float64)
   precisions = []
   recalls = []
+  eval_dists = []
+  ref_dists = []
   for _ in range(num_runs):
-    eval_dist, ref_dist = _cluster_into_bins(eval_data, ref_data, num_clusters)
+    eval_dist, ref_dist, eval_dist_num, ref_dist_num = _cluster_into_bins(eval_data, ref_data, num_clusters)
     precision, recall = compute_prd(eval_dist, ref_dist, num_angles)
     precisions.append(precision)
     recalls.append(recall)
+    eval_dists.append(eval_dist_num)
+    ref_dists.append(ref_dist_num)
   precision = np.mean(precisions, axis=0)
   recall = np.mean(recalls, axis=0)
+  evals = np.mean(eval_dists, axis=0)
+  refs = np.mean(ref_dists, axis=0)
+  print()
+  print("Eval Dist", evals)
+  print("Ref Dist", refs)
+  print()
   return precision, recall
 
 
