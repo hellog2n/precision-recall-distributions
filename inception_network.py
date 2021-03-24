@@ -18,12 +18,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import tensorflow as tf
+from math import floor
+from numpy import ones
+from numpy import expand_dims
+from numpy import log
+from numpy import mean
+from numpy import std
+from numpy import exp
 from skimage.transform import resize
 from numpy import asarray
 from tensorflow.python.keras.applications.inception_v3 import InceptionV3
 size = 75
 model = tf.keras.applications.InceptionV3(include_top=False, pooling='avg', input_shape=(size, size, 3))
-
+modelIS = InceptionV3(include_top=False, input_shape=(size, size, 3))
 def scale_images_GPU(images, new_shape):
   with tf.device('/device:GPU:0'):
     images_list = list()
@@ -71,6 +78,40 @@ def get_inception_features(inputs, inception_graph, layer_name):
   inputs = tf.keras.applications.inception_v3.preprocess_input(inputs)
   #preprocessed = preprocess_for_inception(inputs)
   return model.predict(inputs)
+
+def getInceptionScore(inputs, n_split=2, eps=1E-16):
+  scores = list()
+  n_part = floor(inputs.shape[0]/n_split)
+  for i in range(n_split):
+    # retrieve images
+    ix_start, ix_end = i * n_part, (i+1) * n_part
+    subset = inputs[ix_start:ix_end]
+    # convert from uint8 to float32
+    subset = subset.astype('float32')
+    # scale images to the required size
+    subset = scale_images_GPU(subset, (size, size, 3))
+    subset = tf.keras.applications.inception_v3.preprocess_input(subset)
+    # predict p(y|x)
+    p_yx = modelIS.predict(subset)
+    # calculate p(y)
+    p_y = expand_dims(p_yx.mean(axis=0), 0)
+    # calculate KL divergence using log probabilities
+    kl_d = p_yx * (log(p_yx + eps) - log(p_y + eps))
+    # sum over classes
+    sum_kl_d = kl_d.sum(axis=1)
+    # average over images
+    avg_kl_d = mean(sum_kl_d)
+    # undo the log
+    is_score = exp(avg_kl_d)
+    # store
+    scores.append(is_score)
+  # average across images
+  is_avg, is_std = mean(scores), std(scores)
+  return is_avg, is_std
+
+
+
+
 
 
 """

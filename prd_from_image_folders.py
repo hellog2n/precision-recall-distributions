@@ -15,6 +15,7 @@ from numpy import iscomplexobj
 import numpy as np
 import inception
 import prd_score as prd
+from inception_network import getInceptionScore
 
 # 코드를 실행할 때 입력 인자를 받습니다.
 parser = argparse.ArgumentParser(
@@ -68,6 +69,7 @@ def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
     # 경로에 캐시파일이 있으면 갖고온다.
     if os.path.exists(path):
         embeddings = np.load(path)
+        
         return embeddings
 
     # 디렉토리로부터 이미지를 갖고온다.
@@ -96,6 +98,18 @@ def calculate_fid_GPU(real_embeddings, eval_embeddings):
       covmean = covmean.real
     fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
     return fid
+
+def getImageandInceptionScore(directory):
+  # 디렉토리로부터 이미지를 갖고온다.
+  imgs = load_images_from_dir(directory)
+  is_avg, is_std = getInceptionScore(imgs)
+
+  print(f"Inception Score AVG for {directory}", is_avg)
+  print()
+  print(f"Inception Score STD for {directory}", is_std)
+  print()
+  print("="*20)
+
 
 
 
@@ -145,10 +159,12 @@ if __name__ == '__main__':
     f_beta_data = [prd.prd_to_max_f_beta_pair(precision, recall, beta=args.beta)
                    for precision, recall in prd_data]
     print('F_8   F_1/8     model')
+    i = 0
     for directory, f_beta in zip(eval_dirs, f_beta_data):
         print('%.3f %.3f     %s' % (f_beta[0], f_beta[1], directory))
         fid = calculate_fid_GPU(real_embeddings, eval_embeddingsLists[i])
         print(f'FID ({directory}): %.3f' % fid)
-        i+=1
+        getImageandInceptionScore(directory)
+        i += 1
 
     prd.plot(prd_data, labels=args.eval_labels, out_path=args.plot_path)
