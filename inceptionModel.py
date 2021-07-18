@@ -1,3 +1,5 @@
+# inceptionModel.py
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -177,5 +179,6 @@ def _inception_v3(*args, **kwargs):
         kwargs['init_weights'] = False
 
     return torchvision.models.inception_v3(*args, **kwargs)
+
 
 
