@@ -30,7 +30,7 @@ from numpy import asarray
 from tensorflow.python.keras.applications.inception_v3 import InceptionV3
 size = 75
 model = tf.keras.applications.InceptionV3(include_top=False, pooling='avg', input_shape=(size, size, 3))
-modelIS = InceptionV3(include_top=False, input_shape=(size, size, 3))
+
 def scale_images_GPU(images, new_shape):
   with tf.device('/device:GPU:0'):
     images_list = list()
@@ -79,6 +79,7 @@ def get_inception_features(inputs, inception_graph, layer_name):
   #preprocessed = preprocess_for_inception(inputs)
   return model.predict(inputs)
 
+"""
 def getInceptionScore(inputs, n_split=2, eps=1E-16):
   scores = list()
   n_part = floor(inputs.shape[0]/n_split)
@@ -109,7 +110,7 @@ def getInceptionScore(inputs, n_split=2, eps=1E-16):
   is_avg, is_std = mean(scores), std(scores)
   return is_avg, is_std
 
-
+"""
 
 
 

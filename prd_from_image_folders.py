@@ -162,9 +162,9 @@ if __name__ == '__main__':
     i = 0
     for directory, f_beta in zip(eval_dirs, f_beta_data):
         print('%.3f %.3f     %s' % (f_beta[0], f_beta[1], directory))
-        fid = calculate_fid_GPU(real_embeddings, eval_embeddingsLists[i])
-        print(f'FID ({directory}): %.3f' % fid)
-        getImageandInceptionScore(directory)
+        #fid = calculate_fid_GPU(real_embeddings, eval_embeddingsLists[i])
+        #print(f'FID ({directory}): %.3f' % fid)
+        #getImageandInceptionScore(directory)
         i += 1
 
     prd.plot(prd_data, labels=args.eval_labels, out_path=args.plot_path)
