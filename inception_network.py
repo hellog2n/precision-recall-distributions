@@ -27,7 +27,8 @@ from numpy import std
 from numpy import exp
 from skimage.transform import resize
 from numpy import asarray
-from tensorflow.python.keras.applications.inception_v3 import InceptionV3
+
+from torchvision.models.inception import inception_v3
 size = 75
 model = tf.keras.applications.InceptionV3(include_top=False, pooling='avg', input_shape=(size, size, 3))
 

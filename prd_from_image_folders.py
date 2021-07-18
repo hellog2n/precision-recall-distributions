@@ -16,6 +16,15 @@ import numpy as np
 import inception
 import prd_score as prd
 from inception_network import getInceptionScore
+import torch
+from PIL import Image
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    # If tqdm is not available, provide a mock version of it
+    def tqdm(x):
+        return x
 
 # 코드를 실행할 때 입력 인자를 받습니다.
 parser = argparse.ArgumentParser(
@@ -58,12 +67,12 @@ parser.add_argument('--beta', type=int, default=8, help='number of beta')
 args = parser.parse_args()
 
 # inceptionV3 모델의 pooling 계층을 이용하여 이미지의 feature를 뽑는다.
-def generate_inception_embedding(imgs, inception_path, layer_name='pool_3:0'):
-    return inception.embed_images_in_inception(imgs, inception_path, layer_name)
+def generate_inception_embedding(imgs, device):
+    return inception.embed_images_in_inception(imgs, device)
 
 
 # inceptionV3을 통해서 임베딩을 한다.
-def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
+def load_or_generate_inception_embedding(directory, cache_dir, inception_path, device):
     hash = hashlib.md5(directory.encode('utf-8')).hexdigest()
     path = os.path.join(cache_dir, hash + '.npy')
     # 경로에 캐시파일이 있으면 갖고온다.
@@ -74,7 +83,7 @@ def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
 
     # 디렉토리로부터 이미지를 갖고온다.
     imgs = load_images_from_dir(directory)
-    embeddings = generate_inception_embedding(imgs, inception_path)
+    embeddings = generate_inception_embedding(imgs, device=device)
 
     # 임베딩한 파일을 캐시파일로 저장한다.
     if not os.path.exists(cache_dir):
@@ -83,47 +92,38 @@ def load_or_generate_inception_embedding(directory, cache_dir, inception_path):
         np.save(f, embeddings)
     return embeddings
 
-# FID를 계산한다.
-def calculate_fid_GPU(real_embeddings, eval_embeddings):
-  with tf.device('/device:GPU:0'):
-
-    # calculate mean and covariance statistics
-    mu1, sigma1 = real_embeddings.mean(axis=0), cov(real_embeddings, rowvar=False)
-    mu2, sigma2 = eval_embeddings.mean(axis=0), cov(eval_embeddings, rowvar=False)
-
-    ssdiff = np.sum((mu1 - mu2) ** 2.0)
-
-    covmean = sqrtm(sigma1.dot(sigma2))
-    if iscomplexobj(covmean):
-      covmean = covmean.real
-    fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
-    return fid
-
-def getImageandInceptionScore(directory):
-  # 디렉토리로부터 이미지를 갖고온다.
-  imgs = load_images_from_dir(directory)
-  is_avg, is_std = getInceptionScore(imgs)
-
-  print(f"Inception Score AVG for {directory}", is_avg)
-  print()
-  print(f"Inception Score STD for {directory}", is_std)
-  print()
-  print("="*20)
-
-
-
 
 # 디렉토리로부터 이미지를 갖고온다.
 def load_images_from_dir(directory, types=('png', 'jpg', 'bmp', 'gif')):
+    class ImagePathDataset(torch.utils.data.Dataset):
+        def __init__(self, files, transforms=None):
+            self.files = files
+            self.transforms = transforms
+
+        def __len__(self):
+            return len(self.files)
+
+        def __getitem__(self, i):
+            path = self.files[i]
+            img = Image.open(path).convert('RGB')
+            if self.transforms is not None:
+                img = self.transforms(img)
+            return img
+
+
     paths = [os.path.join(directory, fn) for fn in os.listdir(directory)
              if os.path.splitext(fn)[-1][1:] in types]
     # images are in [0, 255]
     imgs = [cv2.cvtColor(cv2.imread(path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
             for path in paths]
+            
     return np.array(imgs)
 
 
+
+
 if __name__ == '__main__':
+    device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
     if len(args.eval_dirs) != len(args.eval_labels):
         raise ValueError(
             'Number of --eval_dirs must be equal to number of --eval_labels.')
@@ -136,13 +136,13 @@ if __name__ == '__main__':
     if args.verbose:
         print('computing inception embeddings for ' + reference_dir)
     real_embeddings = load_or_generate_inception_embedding(
-        reference_dir, args.cache_dir, args.inception_path)
+        reference_dir, args.cache_dir, args.inception_path, device)
     prd_data = []
     for directory in eval_dirs:
         if args.verbose:
             print('computing inception embeddings for ' + directory)
         eval_embeddings = load_or_generate_inception_embedding(
-            directory, args.cache_dir, args.inception_path)
+            directory, args.cache_dir, args.inception_path, device)
         eval_embeddingsLists.append(eval_embeddings)
         if args.verbose:
             print('computing PRD')
@@ -162,9 +162,6 @@ if __name__ == '__main__':
     i = 0
     for directory, f_beta in zip(eval_dirs, f_beta_data):
         print('%.3f %.3f     %s' % (f_beta[0], f_beta[1], directory))
-        #fid = calculate_fid_GPU(real_embeddings, eval_embeddingsLists[i])
-        #print(f'FID ({directory}): %.3f' % fid)
-        #getImageandInceptionScore(directory)
         i += 1
 
     prd.plot(prd_data, labels=args.eval_labels, out_path=args.plot_path)

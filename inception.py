@@ -5,50 +5,41 @@ from __future__ import division
 from __future__ import print_function
 import os
 import numpy as np
+import torch
 import tensorflow as tf
 from inception_network import get_inception_features
+from inceptionModel import InceptionV3
+from torch.nn.functional import adaptive_avg_pool2d
 
-
-def embed_images_in_inception(imgs, inception_path, layer_name, batch_size=32):
+def embed_images_in_inception(imgs, device, batch_size=32):
+    dims = 2048
     # 이미지를 담을 input_tensor를 선언한다.
     #input_tensor = tf.placeholder(tf.float32, [None, None, None, 3])
-    graph_def = tf.compat.v1.GraphDef()
-    # inceptionV3 모델이 없을 경우 에러를 리턴한다.
-    if not os.path.exists(inception_path):
-        raise ValueError('Inception network file not found: ' + inception_path)
+    block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+    model = InceptionV3([block_idx]).to(device)
+    model.eval()
+
     
     embeddings = []
     i = 0
 
-    with tf.io.gfile.GFile(inception_path, 'rb') as f:
-        graph_def.ParseFromString(f.read())
-        graph = tf.import_graph_def(graph_def, name='')
-        while i < len(imgs):
-                input_tensor = imgs[i:i+batch_size]
-                feature_tensor = get_inception_features(input_tensor, graph, layer_name)
-                embeddings.append(feature_tensor)
-                i += batch_size
-    # 해당 경로에서 inception graph를 갖고온다.
 
-        """Get a GraphDef proto from a disk location."""
-    #graph = tf.contrib.gan.eval.get_graph_def_from_disk(inception_path)
-    # Feature를 뽑는다.
-    #feature_tensor = get_inception_features(input_tensor, graph, layer_name)
+    while i < len(imgs):
+            input_tensor = imgs[i:i+batch_size].to(device)
+            with torch.no_grad():
+                pred = model(input_tensor)[0]
+            # If model output is not scalar, apply global spatial average pooling.
+            # This happens if you choose a dimensionality not equal 2048.
+            if pred.size(2) != 1 or pred.size(3) != 1:
+                pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-    
-
-    
+            #feature_tensor = get_inception_features(input_tensor, graph, layer_name)
+            embeddings.append(pred)
+            i += batch_size
     return np.concatenate(embeddings, axis=0)
 
 
-    # with tf.Session() as sess:
-    #     while i < len(imgs):
-    #         # embedding 리스트에 뽑은 feature들을 담는다.
-    #         embeddings.append(sess.run(
-    #             feature_tensor, feed_dict={input_tensor: imgs[i:i+batch_size]}))
-    #         i += batch_size
-    #         # embeddings 배열들을 연결하여 하나의 배열로 만든다.
-    # return np.concatenate(embeddings, axis=0)
+
 
 
  
